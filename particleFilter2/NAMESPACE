@@ -1,0 +1,3 @@
+useDynLib(particleFilter2)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
