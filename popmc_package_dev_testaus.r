@@ -36,6 +36,17 @@ theta_dens<-function(theta,d,vcov) {
   dmvnorm(theta,mean=d,sigma=vcov,log=T)
 }
 # uutta:
+# (a) Imputoi puuttuvat arvot jakaumasta k(z|y,theta) ja pi(theta|y,z_t)
+k<-function(theta_par,age,smokes_imp,which_missing) {
+  # Tämä täytyy ajaa jokaisella imputaatiolla/parametrirealisaatiolla i.
+  # posterior for smokes_hav
+  sel<-which_missing
+  tmp<-cbind(1,(age-37.5))
+  p_tmp<-expit(tmp %*% theta_par) # p_tmp on [Nhav,M]-matriisi (jokaiselle i = 1,...,M lasketaan imputointi)
+  smokes_imp[sel]<-rbinom(n=sum(sel),size=1,prob=p_tmp) #TODO: Tarvitaan M imputointia
+  smokes_imp
+}
+
 # k-funktion log-uskottavuus
 d_k_log<-function(smokes,theta_par,age,df) { #df on siksi että saadaan indeksi sille, mitkä ovat puuttuvia
   # smokes: tupakointitiedon vektori, johon on jo sijoitettu imputoinnit

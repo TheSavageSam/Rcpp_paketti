@@ -3,73 +3,87 @@
 #include "k.h"
 #include "rinitials.h"
 
+using namespace Rcpp; // Tämä käyttöön, niin ei tarvi aina kirjoittaa Rcpp::
+using namespace std;
+
 RcppExport SEXP popmc(SEXP df_, SEXP ymis_index_, SEXP parlist_, SEXP theta_dens, SEXP theta_prop, SEXP d_k_log, SEXP d_g_log) {
 
 try {          // or use BEGIN_RCPP macro
 //take parameters in
-Rcpp::DataFrame df = Rcpp::DataFrame(df_);
-Rcpp::NumericVector ymis_index = Rcpp::NumericVector(ymis_index_);
-Rcpp::List parlist = Rcpp::List(parlist_);
+DataFrame df = DataFrame(df_);
+NumericVector ymis_index = NumericVector(ymis_index_);
+List parlist = List(parlist_);
 // proposal functions and likelihood functions
-Rcpp::Function tdens("theta_dens"); // parametrien tiheysfunktio
-Rcpp::Function tprop("theta_prop"); // parametrien ehdotusjakauma
-Rcpp::Function dklog("d_k_log"); // 
-Rcpp::Function dglog("d_g_log"); // 
+Function tdens("theta_dens"); // parametrien tiheysfunktio
+Function tprop("theta_prop"); // parametrien ehdotusjakauma
+Function dklog("d_k_log"); // 
+Function dglog("d_g_log"); // 
 
-Rcpp::RNGScope scp;
+RNGScope scp; //Rcpp::RNGScope
 
 //parameters
-int nsim = Rcpp::as<int>(parlist["nsim"]);
-Rcpp::NumericVector x_par = parlist["x"];
-Rcpp::NumericVector mu = parlist["mu"];
-Rcpp::NumericMatrix sdmat = parlist["sdmat"];
+int nsim = as<int>(parlist["nsim"]);
+NumericVector x_par = parlist["x"];
+NumericVector mu = parlist["mu"];
+NumericMatrix sdmat = parlist["sdmat"];
 
 //data
-std::vector<int> smokes_hav = df["smokes_hav"];
-Rcpp::NumericVector smokes_hav_r = df["smokes_hav"];
-std::vector<double> age = df["age"];
-std::vector<double> x = df["x"];
-std::vector<int> osal = df["osal"];
-std::vector<int> ymis_index2 = Rcpp::as<std::vector<int> >(ymis_index); // Eri mittainen, lyhyempi, indeksivektori, joka kertoo mitkä ovat puuttuvia
+vector<int> smokes_hav = df["smokes_hav"];
+NumericVector smokes_hav_r = df["smokes_hav"];
+vector<double> age = df["age"];
+vector<double> x = df["x"];
+vector<int> osal = df["osal"];
+vector<int> ymis_index2 = as<vector<int> >(ymis_index); // Eri mittainen, lyhyempi, indeksivektori, joka kertoo mitkä ovat puuttuvia
 
 int ncol = smokes_hav.size()+1;
 int nrow = nsim; // partikkelien määrä TAI populaation koko
 
 // kutsutaan funktiota theta_dens
-double td_out = Rcpp::as<double>(tdens(x_par,mu,sdmat));
-Rcpp::print(Rcpp::wrap(td_out));
+double td_out = as<double>(tdens(x_par,mu,sdmat));
+print(wrap(td_out));
 
 // Mallin parametrit, nimeltään thetam
-std::vector<double> thetam;
+vector<double> thetam;
 thetam.push_back(0.125);
 thetam.push_back(0.85);
 
 // TODO: Iteroi puuttuvien z ylitse ja imputoi ne kukin nsim=ncol kertaa.
 smokes_hav = k(smokes_hav, age, ymis_index2, thetam);
-smokes_hav_r = Rcpp::wrap(smokes_hav);
+smokes_hav_r = wrap(smokes_hav);
 // kutsutaan funktiota theta_prop 
 //<NumericVector>
 
-Rcpp::List tpout = Rcpp::List(tprop(smokes_hav,df["age"])); //uutta
+List tpout = List(tprop(smokes_hav,df["age"])); //uutta
 
 // partikkelisuotimelle: 
 /*
-*Rcpp::NumericMatrix zline_mat(nrow,ncol);   // ehdotetut partikkelit
-*Rcpp::NumericMatrix w_tilde_log(nrow,ncol); // painot (logaritmi-asteikko)
-*Rcpp::NumericMatrix w_tilde(nrow,ncol);     // painot (tavallinen asteikko)
-*Rcpp::NumericMatrix w_line_mat(nrow,ncol);  // normalisoidut painot
-*Rcpp::NumericMatrix z_mat(nrow,ncol);       // hyväksytyt partikkelit
+*NumericMatrix zline_mat(nrow,ncol);   // ehdotetut partikkelit
+*NumericMatrix w_tilde_log(nrow,ncol); // painot (logaritmi-asteikko)
+*NumericMatrix w_tilde(nrow,ncol);     // painot (tavallinen asteikko)
+*NumericMatrix w_line_mat(nrow,ncol);  // normalisoidut painot
+*NumericMatrix z_mat(nrow,ncol);       // hyväksytyt partikkelit
 */
 // population monte carlolle:
-Rcpp::NumericMatrix zline_mat(nrow,ncol);   // ehdotetut imputoinnit puuttuville z (erona on se, että vain osa havainnoista puuttuu, joten ne on käsiteltävä)
-Rcpp::NumericMatrix theta(nrow,ncol);       // parametrit
-Rcpp::NumericMatrix r_mat_log(nrow,ncol);   // painot (logaritmi-asteikko)
-Rcpp::NumericMatrix r_mat(nrow,ncol);       // painot (tavallinen asteikko)
-Rcpp::NumericMatrix w_mat(nrow,ncol);       // normalisoidut painot
-Rcpp::NumericMatrix z_mat(nrow,ncol);       // hyväksytyt partikkelit
+NumericMatrix zline_mat(nrow,ncol);   // ehdotetut imputoinnit puuttuville z (erona on se, että vain osa havainnoista puuttuu, joten ne on käsiteltävä)
+NumericMatrix theta(nrow,ncol);       // parametrit (M kertaa parametrien määrä)
+NumericMatrix r_mat_log(nrow,ncol);   // painot (logaritmi-asteikko)
+NumericMatrix r_mat(nrow,ncol);       // painot (tavallinen asteikko)
+NumericMatrix w_mat(nrow,ncol);       // normalisoidut painot
+NumericMatrix z_mat(nrow,ncol);       // hyväksytyt partikkelit
 
-
-std::vector<double> w_sum(nrow);
+// TODO: Generate M number of realisations (population of realisations) for parameters called theta. Theta has two or more parameters, so this must be a matrix.
+for (int i=0;i<nrow;i++) {
+  // Lets generate a single realisation for theta to get initial values.
+  List tpout = List(tprop(smokes_hav,df["age"])); //uutta
+  NumericVector tp = tpout["out"];
+  theta(i, _) = tp; // Rcpp::_
+  // Simulate imputations from k-function.
+  smokes_hav = k(smokes_hav, age, ymis_index2, as<vector<double> >(tp)); // argumentit on std-muotoisia! TODO: Mieti muut argumentit kuntoon!
+  smokes_hav_r = wrap(smokes_hav); // Rcpp::wrap()
+  
+  
+}
+vector<double> w_sum(nrow);
 
 
 //for(int i_ymis = 0; i_ymis < ymis_index.size(); i_ymis++) {
@@ -88,15 +102,15 @@ std::vector<double> w_sum(nrow);
 
 
 
-Rcpp::NumericVector zz(smokes_hav.begin(), smokes_hav.end());
+NumericVector zz(smokes_hav.begin(), smokes_hav.end());
 
 
-return(Rcpp::List::create(Rcpp::Named("Zline.mat") = zline_mat,
-Rcpp::Named("theta.mat") = theta,
-Rcpp::Named("Rmat.mat") = r_mat,
-Rcpp::Named("W.mat") = w_mat,
-Rcpp::Named("Z.mat") = z_mat,
-Rcpp::Named("smokes_hav") = zz));
+return(List::create(Named("Zline.mat") = zline_mat,
+Named("theta.mat") = theta,
+Named("Rmat.mat") = r_mat,
+Named("W.mat") = w_mat,
+Named("Z.mat") = z_mat,
+Named("smokes_hav") = zz));
 
 } catch( std::exception &ex ) {    // or use END_RCPP macro
 forward_exception_to_r( ex );
