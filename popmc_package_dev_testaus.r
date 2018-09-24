@@ -1,6 +1,7 @@
 ## compile in between
 # cd /home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/
 # sudo R CMD build PopMC && sudo R CMD INSTALL PopMC
+# sudo R CMD build PopMCarma && sudo R CMD INSTALL PopMCarma
 
 library(PopMC)
 
@@ -24,7 +25,7 @@ theta_prop<-function(smokes_imp,age) {
   dens<-dmvnorm(out,mean=d,sigma=vcov(fit),log=T)
   colnames(out)<-c("beta0","beta1")
   
-  return(list("out"=out,"dens"=dens,"d"=d,"vcov"=vcov(fit)))
+  return(list("out"=out,"dens"=dens,"d"=as.vector(d),"vcov"=as.matrix(vcov(fit))))
   # out: simuloidut estimaatit (pituus 2)
   # dens: tiheysfunktion arvo
   # d: parametriestimaatit (pituus 2)
