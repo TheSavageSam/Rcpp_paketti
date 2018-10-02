@@ -1,9 +1,9 @@
 ## compile in between
 # cd /home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/
 # sudo R CMD build PopMC && sudo R CMD INSTALL PopMC
-# sudo R CMD build PopMCarma && sudo R CMD INSTALL PopMCarma
-
-library(PopMCarma)
+# sudo R CMD build popmcarmatest && sudo R CMD INSTALL popmcarmatest
+rm(list=ls())
+library(popmcarmatest)
 
 setwd("/home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/testialue")
 load(file="testidata.Rdata",verbose=T)
@@ -13,6 +13,7 @@ names(df)
 mu<-c(0.12,0.85)
 M<-matrix(c(1,0.12,0.12,1),2,2)
 
+expit <- function(x) { exp(x)/(1+exp(x)); }
 theta_prop<-function(smokes_imp,age) {
   # smokes_imp: imputoitu tupakointivektori
   # age: ikävektori aineistosta
@@ -49,9 +50,9 @@ k<-function(theta_par,age,smokes_imp,which_missing) {
 }
 
 # k-funktion log-uskottavuus
-d_k_log<-function(smokes,theta_par,age,df) { #df on siksi että saadaan indeksi sille, mitkä ovat puuttuvia
+d_k_log<-function(smokes,theta_par,age,ymis_index) { #ymis_index on siksi että saadaan indeksi sille, mitkä ovat puuttuvia
   # smokes: tupakointitiedon vektori, johon on jo sijoitettu imputoinnit
-  sel<-is.na(df$smokes_hav)
+  sel<-ymis_index
   # posterior for smokes_hav
   tmp<-cbind(1,(age-37.5))
   p_tmp<-expit(tmp %*% theta_par)
@@ -74,9 +75,18 @@ class(tmp[[1]])
 as.vector(tmp[[1]])
 class(tmp[[3]])
 tmp[[3]]
-#system.time({
-  y <- PopMCarma::popmc2(df_=df,par_=list(nsim = 1000,x=c(0.0,0.1), mu = mu, sdmat = M),theta_dens_=theta_dens,theta_prop_=theta_prop,d_k_log_=d_k_log,d_g_log_=d_g_log)
-#})
-names(y) #$smokes_hav
-summary(y$smokes_hav)
-summary(df)
+library(popmcarmatest)
+
+head(df)
+y <- popmc2(df_=df,ymis_index_=which(is.na(df$smokes_hav)),parlist_=list(nsim = 10, x=c(0.0,0.1), mu = mu, sdmat = as.matrix(M)),
+              theta_dens=theta_dens,theta_prop=theta_prop,d_k_log=d_k_log,d_g_log=d_g_log)
+y
+1000*y$vcov
+class(as.matrix(y$vcov))
+#names(y) #$smokes_hav
+#summary(y$smokes_hav)
+#summary(df)
+
+# gdb debuggaus:
+# library(popmcarmatest)
+# source("/home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/popmcarma_package_dev_testaus.r")

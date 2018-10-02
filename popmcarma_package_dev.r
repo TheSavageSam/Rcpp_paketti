@@ -1,17 +1,10 @@
-## compile in between
-# cd /home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/
-# sudo R CMD build PopMC && sudo R CMD INSTALL PopMC
-# sudo R CMD build PopMCarma && sudo R CMD INSTALL PopMCarma
+rm(list=ls())
+library(RcppArmadillo)
+package_name <- "popmcarmatest"
+setwd("/home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/")
 
-library(PopMCarma)
 
-setwd("/home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/testialue")
-load(file="testidata.Rdata",verbose=T)
-
-head(df,20)
-names(df)
-mu<-c(0.12,0.85)
-M<-matrix(c(1,0.12,0.12,1),2,2)
+unlink(paste("./",package_name,"/",sep=""),recursive=TRUE)
 
 theta_prop<-function(smokes_imp,age) {
   # smokes_imp: imputoitu tupakointivektori
@@ -66,17 +59,33 @@ d_g_log<-function(smokes,theta_par,age) { #theta_df on tällä funktiolla aina i
   p_tmp<-expit(tmp %*% theta_par)
   sum(log(c(p_tmp[smokes==1],1-p_tmp[smokes==0])))
 }
-#--
+popmc2 <- function(df_,par_,theta_dens_,theta_prop_,d_k_log_,d_g_log_) {
+  .Call(`_popmcarmatest_popmc2`, df_,par_,theta_dens_,theta_prop_,d_k_log_,d_g_log_)
+}
 
-theta_dens(c(0,0.1),mu,M)
-tmp=theta_prop(c(0,0,1),c(34,45,56))
-class(tmp[[1]])
-as.vector(tmp[[1]])
-class(tmp[[3]])
-tmp[[3]]
-#system.time({
-  y <- PopMCarma::popmc2(df_=df,par_=list(nsim = 1000,x=c(0.0,0.1), mu = mu, sdmat = M),theta_dens_=theta_dens,theta_prop_=theta_prop,d_k_log_=d_k_log,d_g_log_=d_g_log)
-#})
-names(y) #$smokes_hav
-summary(y$smokes_hav)
-summary(df)
+#?RcppArmadillo.package.skeleton
+#"theta_prop","theta_dens","k","d_k_log","d_g_log"
+#RcppArmadillo.package.skeleton(name="hello_world")
+RcppArmadillo.package.skeleton(name=package_name,example_code = F)
+?RcppArmadillo.package.skeleton
+
+unlink(paste("./",package_name,"/src/rcpparma_hello_world.cpp",sep=""))
+unlink(paste("./",package_name,"/src/rcpparma_hello_world.h",sep=""))
+#unlink(paste("./",package_name,"/R/rcpparma_hello_world.R",sep=""))
+unlink(paste("./",package_name,"/man/rcpparma_hello_world.Rd",sep=""))
+
+#file.copy(from, to, overwrite = recursive, recursive = FALSE,
+#          copy.mode = TRUE, copy.date = FALSE)
+filut<-c("apply_mean.cpp","popmc2.cpp","rk.cpp","cppSample.cpp","rcppSample.cpp","k.cpp","rinitials.cpp","apply_mean.h","cppSample.h","k.h","rcppSample.h","rinitials.h","rk.h") #,"popmc.cpp"
+manut<-c("popmc2.Rd",paste(package_name,"-package.Rd",sep=""))
+file.copy(from=paste("dev",filut,sep="/"), paste(package_name,"src",sep="/"))
+file.copy(from=paste("man",manut,sep="/"), paste(package_name,"man",sep="/"),overwrite=T)
+
+Rcpp::compileAttributes(pkgdir = paste("./",package_name,"/",collapse="",sep=""),verbose=TRUE)
+
+## compile in between
+# cd /home/juho/Asiakirjat/UEFhommat/Tutkimusprojekti/Rcpp_paketti/
+# sudo R CMD build popmcarmatest && sudo R CMD INSTALL popmcarmatest
+
+
+

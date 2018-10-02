@@ -12,10 +12,10 @@ using namespace std;
 using namespace arma;
 
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::export]]
+Rcpp::List popmc2(Rcpp::DataFrame df_, Rcpp::NumericVector ymis_index_, Rcpp::List parlist_, Rcpp::Function theta_dens, Rcpp::Function theta_prop, Rcpp::Function d_k_log, Rcpp::Function d_g_log) {
 
-RcppExport SEXP popmc2(SEXP df_, SEXP ymis_index_, SEXP parlist_, SEXP theta_dens, SEXP theta_prop, SEXP d_k_log, SEXP d_g_log) {
-  
-//try {          // or use BEGIN_RCPP macro
+try {          // or use BEGIN_RCPP macro
 //take parameters in
 DataFrame df = DataFrame(df_);
 NumericVector ymis_index = NumericVector(ymis_index_);
@@ -54,7 +54,8 @@ NumericVector dens(M); //dens<-vector("double",M) #
 NumericMatrix r(Tt, M); //r<-matrix(NA,nrow=Tt,ncol=M) # 
 NumericMatrix w(Tt, M); //w<-matrix(NA,nrow=Tt,ncol=M) # 
 arma::mat mu_mat(M, 2); //mu_mat<-matrix(NA,nrow=M,ncol=2) # 
-arma::cube vcov_arr = arma::zeros<arma::cube>(2,2,Tt); //oli (Tt,2,2); //vcov_arr<-array(NA,dim=c(M,2,2)) # 
+mu_mat.zeros();
+arma::cube vcov_arr = arma::zeros<arma::cube>(2,2,M); //oli (Tt,2,2); //vcov_arr<-array(NA,dim=c(M,2,2)) # 
 
 NumericMatrix nn(M, M); //nn<-matrix(NA,nrow=M,ncol=M) # 
 NumericMatrix dd(M, M); //dd<-matrix(NA,nrow=M,ncol=M) # 
@@ -68,18 +69,23 @@ for (int t=0; t < Tt; t++) {
       imputed_data(_,i) = rk(smokes_hav, age, ymis_index2, apu );        //TODO! imputed_data[,i]<-k(i=i,df=df,theta_df=theta_df) # 
       //IntegerVector rk(IntegerVector smokes_hav, NumericVector age, IntegerVector ymis_index, NumericVector theta);
       List tmp = thetaprop(smokes_hav, age);        //TODO! tmp<-theta_prop(1,smokes_imp=imputed_data[,i],df) # theta_prop<-function(smokes_imp,age)
-      NumericMatrix tmp2 = tmp[0]; // 1x2 matriisi
-      theta_all(i,0) = tmp2(0,0);        //theta_all[i,1:2]<-tmp[[1]] # 
-      theta_all(i,1) = tmp2(0,1);        //theta_all[i,1:2]<-tmp[[1]] # 
-      dens(i) = tmp[1];               //dens[i]<-tmp[[2]] #
-      NumericMatrix tmp3 = tmp[2];
-      mu_mat(i,0) = tmp3(0,0);           //mu_mat[i,]<-tmp[[3]] # 
-      mu_mat(i,1) = tmp3(0,1);           //mu_mat[i,]<-tmp[[3]] # 
-      //  vcov_arr(_, _, i) = tmp[3];     //vcov_arr[i,,]<-tmp[[4]] #  // TAI vcov_arr.slice(i) = tmp[3]; mutta tällöin pitää määrittää aluksi arma::cube vcov_arr(2,2,Tt); eikä (Tt,2,2)
-    //  arma::mat apu = as<arma::mat>(tmp[3]);
+      
+      arma::vec tmp2 = as<arma::vec>(tmp[0]); // tmp[0] on vektori, pituus 2
+      theta_all.row(i) = tmp2.t();
+      //theta_all(i,0) = tmp2(0,0);        //theta_all[i,1:2]<-tmp[[1]] # 
+      //theta_all(i,1) = tmp2(0,1);        //theta_all[i,1:2]<-tmp[[1]] # 
+      dens(i) = tmp[1]; //tmp[1] on double // dens[i]<-tmp[[2]] #
+      arma::vec tmp3 = as<arma::vec>(tmp[2]); // tmp[2] on vektori, pituus 2 Rcpp::Numeric
+      mu_mat.row(i) = tmp3.t();   //TODO: Voiko virhe olla täällä?        //mu_mat[i,]<-tmp[[3]] # 
+//      mu_mat(i,0) = tmp3(0);
+//      mu_mat(i,1) = tmp3(1);
+      
       vcov_arr.slice(i) = as<arma::mat>(tmp[3]);//apu;
     }
-    
+
+//    return(List::create(Named("mu_mat") = mu_mat,
+//                        Named("vcov") = vcov_arr,
+//                        Named("theta_all") = theta_all));
     // Askel (b)
     
     // Tarvitaan MxM matriisit full data likelihoodista, ehdotusjakaumasta kdim
@@ -91,11 +97,20 @@ for (int t=0; t < Tt; t++) {
         // lasketaan pi-jakauman tiheys
         arma::rowvec rv = theta_all.row(i);
         arma::vec rv_t = rv.t();
-        arma::vec rv_t2 = theta_all.row(i).t();
-        log_dens_pi = as<double>(thetadens(wrap(theta_all.row(i).t()), wrap(mu_mat.row(l).t()), wrap(vcov_arr.slice(l)) )); //log_dens_pi<-theta_dens(theta_all[i,1:2],mu_mat[l,],vcov_arr[l,,]) # 
-        log_dens_g = as<double>(dglog(wrap(imputed_data(_,l)),wrap(theta_all.row(i).t()),df)); //log_dens_g <-d_g_log(smokes=imputed_data[,l],theta_all[i,],df) # 
-        log_dens_k_ll = as<double>(dklog(wrap(imputed_data(_,l)),wrap(theta_df(i,_)),df)); // tässä nimenomaan theta_{t-1}^(i) eli edelliskerran theta //log_dens_k_ll <-d_k_log(smokes=imputed_data[,l],theta_df[i,],df) #
-        log_dens_k_li = as<double>(dklog(wrap(imputed_data(_,l)),wrap(theta_df(l,_)),df)); // tässä nimenomaan theta_{t-1}^(i) eli edelliskerran theta //log_dens_k_li <-d_k_log(smokes=imputed_data[,l],theta_df[l,],df) #
+        arma::vec rv_t2 = theta_all.row(i).t(); // oli .t() vielä lisäksi
+        arma::mat A = vcov_arr.slice(l);
+        arma::vec muu = mu_mat.row(l); // 0x0 vectori
+        return(List::create(Named("rv") = rv,
+                            Named("rv_t") = rv_t,
+                            Named("rv_t2") = rv_t2,
+                            Named("A") = A,
+                            Named("muu") = mu_mat.row(l)));
+        
+        log_dens_pi = as<double>(thetadens(Rcpp::as<NumericVector>(wrap(theta_all.row(i).t())), Rcpp::as<NumericVector>(wrap(muu)), Rcpp::as<NumericMatrix>(wrap(A)) )); //log_dens_pi<-theta_dens(theta_all[i,1:2],mu_mat[l,],vcov_arr[l,,]) # 
+        log_dens_g = as<double>(dglog(Rcpp::as<NumericVector>(wrap(imputed_data(_,l))),Rcpp::as<NumericVector>(wrap(theta_all.row(i).t())),age)); //log_dens_g <-d_g_log(smokes=imputed_data[,l],theta_all[i,],df) # 
+        //TODO: dklog tarvitsee indeksivektorin siitä, mitkä ovat puuttuvaa tietoa!
+        log_dens_k_ll = as<double>(dklog(Rcpp::as<NumericVector>(wrap(imputed_data(_,l))), Rcpp::as<NumericVector>(wrap(theta_df(i,_))), age, ymis_index)); // tässä nimenomaan theta_{t-1}^(i) eli edelliskerran theta //log_dens_k_ll <-d_k_log(smokes=imputed_data[,l],theta_df[i,],df) #
+        log_dens_k_li = as<double>(dklog(Rcpp::as<NumericVector>(wrap(imputed_data(_,l))), Rcpp::as<NumericVector>(wrap(theta_df(l,_))), age, ymis_index)); // tässä nimenomaan theta_{t-1}^(i) eli edelliskerran theta //log_dens_k_li <-d_k_log(smokes=imputed_data[,l],theta_df[l,],df) #
         
         nn(i,l) = exp(log_dens_g-log_dens_k_ll-log(M)); // log()-funktio tarvisee ehkä alkuun #include <bits/stdc++.h> //nn[i,l]<-log_dens_g-log_dens_k_ll-log(M) # 
         dd(i,l) = exp(log_dens_k_li+log_dens_pi-log_dens_k_ll-log(M)); //dd[i,l]<-log_dens_k_li+log_dens_pi-log_dens_k_ll-log(M) # 
@@ -128,7 +143,10 @@ for (int t=0; t < Tt; t++) {
     for(int i=0;i<sampled.size();i++) {
       theta_df(1,i) = theta_all(sampled(i),1);
       theta_df(2,i) = theta_all(sampled(i),2);
+//      theta_df(1,i) = theta_all(i,1);
+//      theta_df(2,i) = theta_all(i,2);
     }
+    
     // tallennetaan theta:t taulukkoon
     //res_theta_array.slice(t) = theta_df; //res_theta_array[t,,]<-theta_all[sampled,] # 
     for(int i=0;i<sampled.size();i++) { //i=1,...,M
@@ -138,7 +156,14 @@ for (int t=0; t < Tt; t++) {
     Rprintf("ITERAATIO % suoritettu.",t); //print(paste("ITERAATIO ",t," suoritettu.",sep="")) # 
     
 }
-return(List::create(Named("theta_all") = theta_all, //TODO: Tarkasta mikä vastaa mitäkin nimeä ja muunna nimet sopiviksi vasta, kun tiedät niiden olevan varmasti oikein!
-                    Named("res_theta_array") = res_theta_array,
-                    Named("imputed_data") = imputed_data));
+return(List::create(Named("imputed_data") = imputed_data,
+                    Named("theta_all") = theta_all, //TODO: Tarkasta mikä vastaa mitäkin nimeä ja muunna nimet sopiviksi vasta, kun tiedät niiden olevan varmasti oikein!
+                    Named("res_theta_array") = res_theta_array));
+ 
+} catch( std::exception &ex ) {    // or use END_RCPP macro
+  forward_exception_to_r( ex );
+} catch(...) {
+  ::Rf_error( "c++ exception (unknown reason)" );
+}
+return R_NilValue; // -Wall
 } // End of function
